@@ -323,7 +323,7 @@ useEffect(()=>{
 fsGet(“gallery/photos”).then(data=>{
 if(data && Object.keys(data).length>0){
 // Merge with defaults (keep default 2025 photos if no firebase data for that loc)
-const merged={…DEFAULT_GALLERY};
+const merged={...DEFAULT_GALLERY};
 for(const [loc,photos] of Object.entries(data)){
 if(Array.isArray(photos) && photos.length>0) merged[loc]=photos;
 }
@@ -344,10 +344,10 @@ setSyncStatus(ok?“saved”:“error”);
 setTimeout(()=>setSyncStatus(“idle”),3000);
 },[]);
 
-const allPhotos=GALLERY_LOCATIONS.flatMap(loc=>(galleryData[loc]||[]).map(p=>({…p,loc})));
-const allYears=[…new Set(allPhotos.map(p=>p.year))].sort((a,b)=>b-a);
+const allPhotos=GALLERY_LOCATIONS.flatMap(loc=>(galleryData[loc]||[]).map(p=>({...p,loc})));
+const allYears=[...new Set(allPhotos.map(p=>p.year))].sort((a,b)=>b-a);
 const visiblePhotos=(()=>{
-const pool=selectedLoc===“全部”?allPhotos:(galleryData[selectedLoc]||[]).map(p=>({…p,loc:selectedLoc}));
+const pool=selectedLoc===“全部”?allPhotos:(galleryData[selectedLoc]||[]).map(p=>({...p,loc:selectedLoc}));
 return selectedYear===“全部”?pool:pool.filter(p=>p.year===selectedYear);
 })();
 
@@ -364,7 +364,7 @@ const compressed = await compressImage(base64, 800, 0.7);
 const storagePath=`gallery/${uploadLoc}/${Date.now()}_${file.name}`;
 const url=await storageUpload(storagePath, compressed);
 const newPhoto={year:addingYear, url: url||compressed, caption:addingCaption||`${uploadLoc} ${addingYear}`, storagePath: url?storagePath:null};
-const newData={…galleryData,[uploadLoc]:[…(galleryData[uploadLoc]||[]),newPhoto]};
+const newData={...galleryData,[uploadLoc]:[...(galleryData[uploadLoc]||[]),newPhoto]};
 setGalleryData(newData);
 await saveToFirestore(newData);
 setAddingCaption(””);
@@ -378,7 +378,7 @@ e.target.value=””;
 const removePhoto=async(loc,idx)=>{
 const photo=(galleryData[loc]||[])[idx];
 if(photo?.storagePath) await storageDelete(photo.storagePath).catch(()=>{});
-const newData={…galleryData,[loc]:(galleryData[loc]||[]).filter((_,i)=>i!==idx)};
+const newData={...galleryData,[loc]:(galleryData[loc]||[]).filter((_,i)=>i!==idx)};
 setGalleryData(newData);
 await saveToFirestore(newData);
 };
@@ -511,11 +511,11 @@ const [editingFam,setEditingFam]=useState(null);
 const [newFamInput,setNewFamInput]=useState(””);
 const [showFamManager,setShowFamManager]=useState(false);
 
-const toggle=(name)=>setChecked(p=>({…p,[name]:!p[name]}));
-const setFamily=(name,val)=>{setItems(prev=>prev.map(it=>it.name===name?{…it,family:val}:it));setEditingFam(null);};
-const addFamOption=()=>{const v=newFamInput.trim();if(v&&!famOptions.includes(v)){setFamOptions(p=>[…p,v]);}setNewFamInput(””);};
+const toggle=(name)=>setChecked(p=>({...p,[name]:!p[name]}));
+const setFamily=(name,val)=>{setItems(prev=>prev.map(it=>it.name===name?{...it,family:val}:it));setEditingFam(null);};
+const addFamOption=()=>{const v=newFamInput.trim();if(v&&!famOptions.includes(v)){setFamOptions(p=>[...p,v]);}setNewFamInput(””);};
 const removeFamOption=(opt)=>setFamOptions(p=>p.filter(x=>x!==opt));
-const filterFamList=[“全部”,“共同采购”,…famOptions.filter(Boolean)];
+const filterFamList=[“全部”,“共同采购”,...famOptions.filter(Boolean)];
 const filtered=items.filter(item=>{
 const locOk=filterLoc===“全部”||item.loc.includes(filterLoc);
 const famOk=filterFam===“全部”||(filterFam===“共同采购”?!item.family:item.family===filterFam);
@@ -555,7 +555,7 @@ return(
 <div style={{marginBottom:10}}>
 <div style={{fontSize:11,color:”#a08060”,marginBottom:6}}>按墓地</div>
 <div style={{display:“flex”,gap:6,flexWrap:“wrap”}}>
-{[“全部”,…LOCATIONS].map(l=>(<button key={l} onClick={()=>setFilterLoc(l)} style={{padding:“4px 11px”,borderRadius:20,border:`1px solid ${filterLoc===l?"#c8960c":"#3d2000"}`,background:filterLoc===l?”#c8960c22”:“transparent”,color:filterLoc===l?”#c8960c”:”#a08060”,fontSize:12,cursor:“pointer”,fontFamily:“inherit”}}>{l}</button>))}
+{[“全部”,...LOCATIONS].map(l=>(<button key={l} onClick={()=>setFilterLoc(l)} style={{padding:“4px 11px”,borderRadius:20,border:`1px solid ${filterLoc===l?"#c8960c":"#3d2000"}`,background:filterLoc===l?”#c8960c22”:“transparent”,color:filterLoc===l?”#c8960c”:”#a08060”,fontSize:12,cursor:“pointer”,fontFamily:“inherit”}}>{l}</button>))}
 </div>
 </div>
 <div style={{marginBottom:14}}>
@@ -687,4 +687,3 @@ ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(
   </script>
 </body>
 </html>
-
