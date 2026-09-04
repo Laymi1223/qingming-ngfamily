@@ -16,7 +16,9 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
   <script type="text/babel" data-presets="react">
     const { useState, useRef, useEffect, useCallback } = React;
 
@@ -33,9 +35,11 @@ const FB_PROJECT = "qingming-ng-family";
 const FB_API_KEY = "AIzaSyCPgMzRQVNcsEfJz4kx8M0Lw_iAJS535YU";
 const FB_BUCKET  = "qingming-ng-family.firebasestorage.app";
 
-// Firebase SDK init (real-time Firestore listeners)
-firebase.initializeApp({ apiKey: FB_API_KEY, projectId: FB_PROJECT, storageBucket: FB_BUCKET });
+// Firebase SDK init (real-time Firestore listeners + auth-gated Storage)
+firebase.initializeApp({ apiKey: FB_API_KEY, authDomain: `${FB_PROJECT}.firebaseapp.com`, projectId: FB_PROJECT, storageBucket: FB_BUCKET });
 const db = firebase.firestore();
+const auth = firebase.auth();
+const storageSvc = firebase.storage();
 
 // Live-subscribe to a document; calls onData(data|null) on every change (initial + realtime updates)
 function fsWatch(path, onData) {
@@ -50,24 +54,23 @@ try { await db.doc(path).set(data); return true; }
 catch (e) { console.error(`fsSet(${path}) failed:`, e); return false; }
 }
 
-// Storage REST upload (base64 → public URL)
+// Storage upload via SDK (carries the signed-in user's auth token)
 async function storageUpload(path, base64dataUrl) {
-// Convert base64 data URL to blob
+try {
 const res = await fetch(base64dataUrl);
 const blob = await res.blob();
-const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${FB_BUCKET}/o?name=${encodeURIComponent(path)}&key=${FB_API_KEY}`;
-const r = await fetch(uploadUrl, {
-method: "POST",
-headers: { "Content-Type": blob.type || "image/jpeg" },
-body: blob
-});
-if (!r.ok) return null;
-const json = await r.json();
-return `https://firebasestorage.googleapis.com/v0/b/${FB_BUCKET}/o/${encodeURIComponent(json.name)}?alt=media`;
+const ref = storageSvc.ref(path);
+await ref.put(blob, { contentType: blob.type || "image/jpeg" });
+return await ref.getDownloadURL();
+} catch (e) {
+console.error(`storageUpload(${path}) failed:`, e);
+return null;
+}
 }
 
 async function storageDelete(path) {
-await fetch(`https://firebasestorage.googleapis.com/v0/b/${FB_BUCKET}/o/${encodeURIComponent(path)}?key=${FB_API_KEY}`, { method: "DELETE" });
+try { await storageSvc.ref(path).delete(); }
+catch (e) { console.error(`storageDelete(${path}) failed:`, e); }
 }
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
@@ -650,7 +653,69 @@ return(
 }
 
 
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(QingmingApp));
+// ── AUTH GATE ── Google sign-in required; only allowlisted family emails get in.
+// (Enforcement lives in Firestore/Storage security rules — this is just the UI reflection of that.)
+function AuthGate(){
+const [user,setUser]=useState(undefined); // undefined=checking, null=signed out, object=signed in
+const [authorized,setAuthorized]=useState(undefined);
+const [authError,setAuthError]=useState(null);
+
+useEffect(()=>{
+const unsub=auth.onAuthStateChanged(u=>setUser(u));
+return unsub;
+},[]);
+
+useEffect(()=>{
+if(!user){ setAuthorized(undefined); return; }
+setAuthorized(undefined);
+db.doc("shopping/state").get()
+.then(()=>setAuthorized(true))
+.catch(err=>setAuthorized(err.code==="permission-denied"?false:true));
+},[user]);
+
+const signIn=async()=>{
+setAuthError(null);
+try{ await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+catch(e){ setAuthError(e.message); }
+};
+const signOut=()=>auth.signOut();
+
+const shellStyle={minHeight:"100vh",background:"#1a0a00",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",color:"#f5e6c8",padding:24,textAlign:"center",fontFamily:"'Noto Serif SC','SimSun',serif"};
+
+if(user===undefined){
+return <div style={shellStyle}>加载中...</div>;
+}
+
+if(!user){
+return (
+<div style={shellStyle}>
+<div style={{fontSize:22,marginBottom:16}}>🌿 清明祭祖指南</div>
+<p style={{color:"#a08060",marginBottom:20,fontSize:13}}>请使用 Google 账号登录以继续</p>
+<button onClick={signIn} style={{padding:"12px 24px",background:"#c8960c",color:"#1a0a00",border:"none",borderRadius:8,fontSize:14,fontWeight:"bold",cursor:"pointer",fontFamily:"inherit"}}>使用 Google 登录</button>
+{authError&&<p style={{color:"#e57373",marginTop:14,fontSize:12}}>{authError}</p>}
+</div>
+);
+}
+
+if(authorized===undefined){
+return <div style={shellStyle}>验证中...</div>;
+}
+
+if(!authorized){
+return (
+<div style={shellStyle}>
+<div style={{fontSize:22,marginBottom:16}}>🌿 清明祭祖指南</div>
+<p style={{color:"#e57373",marginBottom:8,fontSize:13}}>此账号未获授权</p>
+<p style={{color:"#a08060",marginBottom:20,fontSize:12}}>{user.email}</p>
+<button onClick={signOut} style={{padding:"10px 20px",background:"transparent",color:"#c8960c",border:"1px solid #c8960c",borderRadius:8,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>切换账号</button>
+</div>
+);
+}
+
+return <QingmingApp/>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(AuthGate));
 
 
   </script>
